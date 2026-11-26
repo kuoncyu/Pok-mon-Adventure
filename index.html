@@ -40,13 +40,41 @@ const STORY={
 const TY={火:{草:2,水:.5,火:.5},水:{火:2,草:.5,水:.5},草:{水:2,火:.5,草:.5}};
 const MV={撞擊:['普通',40],藤鞭:['草',45],火花:['火',45],水槍:['水',45],啄:['普通',35]};
 const M={leaf:{n:'葉芽獸',t:'草',b:[45,49,49,45],mv:['撞擊','藤鞭'],c:'#6c6'},fire:{n:'炎尾狐',t:'火',b:[39,52,43,65],mv:['撞擊','火花'],c:'#f84'},aqua:{n:'波波鰭',t:'水',b:[44,48,65,43],mv:['撞擊','水槍'],c:'#49f'},rat:{n:'田鼠仔',t:'普通',b:[30,56,35,72],mv:['撞擊'],c:'#ba8'},bird:{n:'小翎鳥',t:'普通',b:[40,45,40,56],mv:['啄','撞擊'],c:'#dc8'}};
-const MAP=['####################','#..................#','#.HHHH..ggggg.HHHH.#','#.HHHH..ggggg.HHHH.#','#.HDHH..ggggg.HHDH.#','#..................#','#.ggg..~~~~....ggg.#','#.ggg..~~~~....ggg.#','#......~~~~........#','#..................#','#.....gggggggg.....#','#.....gggggggg.....#','#..................#','#..................#','#########E##########'];
-const TI='.g#HD~E',BLOCK='#HD~';
+const TOWN_M=['####################','#..................#','#.HHHH..ggggg.HHHH.#','#.HHHH..ggggg.HHHH.#','#.HDHH..ggggg.HHDH.#','#..................#','#.ggg..~~~~....ggg.#','#.ggg..~~~~....ggg.#','#......~~~~........#','#..................#','#.....gggggggg.....#','#.....gggggggg.....#','#..................#','#..................#','#########E##########'];
+const TI='.g#HD~E?FWCM',BLOCK='#H~WC';
 // ===== 難度曲線：a=區域序號（0=新手村，越大越後期）。等級、野怪強度倍率、招式聯明度都隨 a 成長 =====
 const CURVE=a=>({lo:Math.round(2+2.2*a**1.35),hi:Math.round(4+2.6*a**1.35),mul:+(.85+.04*a).toFixed(2),ai:Math.min(1,.15*a)});
 const AREA={start:{a:0,pool:['rat','bird']}}; // 新地圖在這裡加一筆：{a:區域序號,pool:[可遇怪物]}
 let CUR='start';
-const NPC=[{x:8,y:5,id:'prof'},{x:13,y:9,id:'girl'}];
+// ===== 多地圖：城鎮 / 商店 / 精靈中心 / 道路（傳送點 warps、訓練家 tr、gone=打敗後消失） =====
+const IN=['WWWWWWWWW','WFFFFFFFW','WCCCCCFFW','WFFFFFFFW','WFFFFFFFW','WFFFFFFFW','WFFFFFFFW','WWWWMWWWW'];
+AREA.route={a:1,pool:['rat','bird']};
+const MAPS={
+ town:{m:TOWN_M,area:'start',npcs:[{x:8,y:5,id:'prof',c:['#f4f4f4','#9a9a9a']},{x:13,y:9,id:'girl',c:['#f08ab0','#7a3a1a']}],
+  warps:[{x:3,y:4,to:'mart',tx:4,ty:6,dir:1},{x:16,y:4,to:'center',tx:4,ty:6,dir:1},{x:9,y:14,to:'route',tx:9,ty:1,dir:0,need:1}]},
+ mart:{m:IN,indoor:1,npcs:[{x:4,y:1,id:'clerk',c:['#3a6ad8','#4a2e1a']}],warps:[{x:4,y:7,to:'town',tx:3,ty:5,dir:0}]},
+ center:{m:IN,indoor:1,npcs:[{x:4,y:1,id:'nurse',c:['#f7b6c8','#e0508a']},{x:7,y:1,id:'pc',c:['#000','#000']}],warps:[{x:4,y:7,to:'town',tx:16,ty:5,dir:0}]},
+ route:{area:'route',m:['#########E##########','#..................#','#..gggg.....gggg...#','#..gggg.....gggg...#','#..gggg.....gggg...#','#..................#','#.....gggggggg.....#','#.....gggggggg.....#','#..................#','#.gggg.........ggg.#','#.gggg.........ggg.#','#..................#','#..................#','#..................#','#########E##########'],
+  npcs:[{x:5,y:3,id:'t1',c:['#d03030','#222'],tr:{n:'短褲小子 小明',team:[['rat',3]],money:120,line:'你的精靈看起來很弱嘼！'}},{x:14,y:9,id:'t2',c:['#3a8a3a','#222'],tr:{n:'捕蟲少女 小美',team:[['bird',4],['rat',3]],money:200}},{x:9,y:13,id:'boss',gone:1,c:['#e8c040','#222'],tr:{n:'館主 阿翔',team:[['bird',7],['bird2',9]],money:600,badge:1,line:'想通過這裡，先打贏我！'}}],
+  warps:[{x:9,y:0,to:'town',tx:9,ty:13,dir:1},{x:9,y:14,msg:STORY.gate1}]}};
+const NEW=()=>({title:0,px:9,py:9,dir:0,party:[],dex:{},balls:0,starter:0,flags:{},money:3000,badges:0,map:'town'});
+let NPC=[],MAP=TOWN_M,CURM='town';
+function loadMap(n){CURM=n;const q=MAPS[n];MAP=q.m;CUR=q.area||CUR;S.map=n;NPC=(q.npcs||[]).filter(o=>!(o.gone&&S.flags[o.id]))}
+function seeTr(){for(const n of NPC){if(!n.tr||S.flags[n.id])continue;const dx=S.px-n.x,dy=S.py-n.y;if((dx==0||dy==0)&&Math.abs(dx+dy)<=4){let ok=1;const sx=Math.sign(dx),sy=Math.sign(dy);for(let k=1;k<Math.abs(dx+dy);k++)if(BLOCK.includes(MAP[n.y+sy*k][n.x+sx*k]))ok=0;if(ok)return meet(n)}}}
+function meet(n){S.busy=1;S.emote={id:n.id,t:performance.now()};const sx=Math.sign(S.px-n.x),sy=Math.sign(S.py-n.y);n.dir=sx<0?2:sx>0?3:sy<0?1:0;
+ setTimeout(()=>{S.emote=null;const go=()=>{if(Math.abs(S.px-n.x)+Math.abs(S.py-n.y)<=1){S.dir=sx>0?2:sx<0?3:sy>0?1:0;S.busy=0;return fight(n)}n.x+=sx;n.y+=sy;setTimeout(go,220)};go()},800)}
+function fight(n){const t=n.tr;if(S.flags[n.id])return say([t.n+'：……我輸了。']);
+ say([`${t.n}：${t.line||'看到我了吧！來對戰！'}`],()=>{const f=mk(t.team[0][0],t.team[0][1],CURVE(AREA[CUR].a).mul);f.ai=.4;seen(f.id);
+  S.battle={foe:f,me:S.party.find(m=>m.hp>0)||S.party[0],tr:{n:t.n,team:t.team,idx:0,money:t.money,id:n.id,badge:t.badge}};bgm('battle');say([`${t.n}派出了${M[f.id].n}！`],bmenu)})}
+function nextFoe(B){if(!B.tr)return end();const t=B.tr;
+ if(t.idx+1<t.team.length){t.idx++;const[id,lv]=t.team[t.idx],f=mk(id,lv,CURVE(AREA[CUR].a).mul);f.ai=.4;seen(id);B.foe=f;B.fh=null;B.pff=null;return say([`${t.n}派出了${M[id].n}！`],bmenu)}
+ S.flags[t.id]=1;S.money+=t.money;const T=[`${t.n}輸了！`,`獲得了 ¥${t.money}。`];if(t.badge){S.badges++;T.push('獲得了館主徽章！','（目前進度到此，後續劇情開發中。）')}
+ say(T,()=>{NPC=NPC.filter(n=>!(n.id==t.id&&n.gone));end()})}
+function nurse(){say(['歡迎來到精靈中心！','要讓您的精靈們好好休息一下嗎？'],()=>menu(['好','不用'],112,52,40,i=>{if(i==0){S.party.forEach(m=>{m.hp=m.mhp;m.pp=null});say(['……請稍等。','精靈們都恢復精神了！','歡迎再度光臨！'])}else say(['歡迎再度光臨！'])}))}
+const GOODS=[['pot',200],['ball',200],['berry',100],['charm',500]];
+function shop(){say([`歡迎光臨！您現在有 ¥${S.money}。`],shopMenu)}
+function shopMenu(){menu(GOODS.map(([id,p])=>`${ITEMS[id].n} ¥${p}`).concat('離開'),40,14,112,i=>{if(i>=GOODS.length)return say(['歡迎再度光臨！']);const[id,p]=GOODS[i];
+ if(S.money<p)return say(['錢不夠喔。'],shopMenu);S.money-=p;addI(id,1);say([`買了${ITEMS[id].n}！剩下 ¥${S.money}。`],shopMenu)},()=>{})}
 // ===== 引擎 =====
 const cv=document.getElementById('c'),x=cv.getContext('2d');
 const st=document.getElementById('st'),joy=document.getElementById('joy'),kn=document.getElementById('kn'),ab=document.getElementById('ab'),fn=document.getElementById('fn'),ba=document.getElementById('ba'),bb=document.getElementById('bb');
@@ -66,15 +94,50 @@ function fit(){const vw=innerWidth,vh=innerHeight;ROT=vh>vw;SW=ROT?vh:vw;SH=ROT?
 addEventListener('resize',fit);fit();
 const imgs={};const L=(k,s)=>{const i=new Image();i.onload=()=>i.ok=1;i.src=s;imgs[k]=i;return i};
 Object.entries(ASSETS.img).forEach(([k,s])=>L(k,s));
-const spr=(id,side)=>imgs[id+side]||L(id+side,ASSETS.monDir+id+'_'+side+'.png');
+const spr=(id,side)=>imgs[id+side]||L(id+side,(M[id]&&M[id].spr&&M[id].spr[side])||ASSETS.monDir+id+'_'+side+'.png');
 const aud={};let cur;const bgm=k=>{try{cur&&cur.pause();cur=aud[k]||(aud[k]=Object.assign(new Audio(ASSETS.bgm[k]),{loop:true,volume:.5}));cur.play().catch(()=>{})}catch(e){}};
 const need=l=>Math.round(l**1.6*4);
-const stats=m=>{const b=M[m.id].b,f=v=>Math.floor(v*m.lv/25)+5;m.mhp=f(b[0])+m.lv+5;m.a=f(b[1]);m.d=f(b[2]);m.s=f(b[3])};
-const mk=(id,lv,mul=1)=>{const m={id,lv,xp:0,mv:M[id].mv};stats(m);if(mul!=1)['mhp','a','d','s'].forEach(k=>m[k]=Math.round(m[k]*mul));m.hp=m.mhp;return m};
+const stats=m=>{const b=M[m.id].b,f=v=>Math.floor(v*m.lv/25)+5;m.mhp=f(b[0])+m.lv+5;m.a=f(b[1]);m.d=f(b[2]);m.s=f(b[3]);m.sa=f(b[4]??b[1]);m.sd=f(b[5]??b[2])};
+// ===== PokeAPI 資料層（金版世代：中文名、屬性、種族值、金版圖種、升級招式、進化、完整屬性相剋）。連線失敗時自動改用內建原創精靈（離線模式） =====
+const API='https://pokeapi.co/api/v2/',SETIDS=[152,155,158,16,17,19,161,163,187],ALT={leaf:152,fire:155,aqua:158,rat:19,bird:16,bird2:17},FB={bird2:'bird'},MVA={};
+let LOAD='載入實可夢資料…',API_ON=false;
+const cid=id=>API_ON?(ALT[id]??id):(FB[id]??id);
+const ZT={normal:'普通',fire:'火',water:'水',grass:'草',electric:'電',ice:'冰',fighting:'格鬥',poison:'毒',ground:'地面',flying:'飛行',psychic:'超能力',bug:'蟲',rock:'岩石',ghost:'幽靈',dragon:'龍',dark:'惡',steel:'鋼'};
+const TCOL={'火':'#f84','水':'#49f','草':'#6c6','電':'#fd4','普通':'#ba8','飛行':'#9bd','蟲':'#9c4','毒':'#a5c','地面':'#ca6','岩石':'#a96','冰':'#9de','格鬥':'#c54','超能力':'#f7a','幽靈':'#86b','龍':'#76f','惡':'#765','鋼':'#aab'};
+const SPECIAL=['火','水','草','電','冰','超能力','龍','惡'];
+const tsOf=id=>M[id].ts||[M[id].t],eff=(t,d)=>tsOf(d.id).reduce((a,k)=>a*(TY[t]?.[k]??1),1);
+const cch=(k,fn)=>async()=>{try{const c=localStorage.getItem('pk2:'+k);if(c)return JSON.parse(c)}catch(e){}const v=await fn();try{localStorage.setItem('pk2:'+k,JSON.stringify(v))}catch(e){}return v};
+const jf=async u=>{const r=await fetch(API+u);if(!r.ok)throw 0;return r.json()};
+const zh=(a,d)=>(a.find(n=>n.language.name=='zh-Hant')||a.find(n=>n.language.name=='zh-Hans')||a.find(n=>n.language.name=='en')||{name:d}).name;
+const idOf=u=>+u.split('/').filter(Boolean).pop();
+const loadMove=nm=>cch('mv:'+nm,async()=>{const j=await jf('move/'+nm);return{n:zh(j.names,nm),t:ZT[j.type.name],p:j.power||0,pp:j.pp||25,acc:j.accuracy||100}})();
+const loadMon=id=>cch('mon:'+id,async()=>{const[p,s]=await Promise.all([jf('pokemon/'+id),jf('pokemon-species/'+id)]);
+ const g=(p.sprites.versions['generation-ii']||{}).gold||{},ch=await(await fetch(s.evolution_chain.url)).json();let evo=null;
+ (function f(n){if(idOf(n.species.url)==id&&n.evolves_to[0]){const e=n.evolves_to[0],dd=e.evolution_details[0]||{};evo=dd.min_level?{to:idOf(e.species.url),lv:dd.min_level}:null}n.evolves_to.forEach(f)})(ch.chain);
+ const learn=p.moves.map(m=>{const v=m.version_group_details.find(v=>v.version_group.name=='gold-silver'&&v.move_learn_method.name=='level-up');return v&&[v.level_learned_at,m.move.name]}).filter(Boolean).sort((a,b)=>a[0]-b[0]);
+ return{n:zh(s.names,p.name),ts:p.types.map(t=>ZT[t.type.name]),b:[0,1,2,5,3,4].map(i=>p.stats[i].base_stat),f:g.front_transparent||g.front_default||p.sprites.front_default,k:g.back_default||p.sprites.back_default,learn,evo}})();
+const loadTypes=()=>Promise.all(Object.keys(ZT).map(async k=>{const d=await cch('ty:'+k,async()=>{const r=(await jf('type/'+k)).damage_relations,f=a=>a.map(t=>ZT[t.name]).filter(Boolean);return{d:f(r.double_damage_to),h:f(r.half_damage_to),z:f(r.no_damage_to)}})(),t={};d.d.forEach(n=>t[n]=2);d.h.forEach(n=>t[n]=.5);d.z.forEach(n=>t[n]=0);TY[ZT[k]]=t}));
+async function preload(){await loadTypes();const D={};await Promise.all(SETIDS.map(async id=>{D[id]=await loadMon(id);LOAD=`載入實可夢資料 ${Object.keys(D).length}/${SETIDS.length}…`}));
+ await Promise.all([...new Set(Object.values(D).filter(d=>d.evo).map(d=>d.evo.to))].filter(i=>!D[i]).map(async i=>{D[i]=await loadMon(i)}));
+ const nm=new Set();Object.values(D).forEach(d=>d.learn.forEach(([l,m])=>l<=36&&nm.add(m)));const arr=[...nm],mvd={};let c=0;
+ for(let i=0;i<arr.length;i+=10)await Promise.all(arr.slice(i,i+10).map(async a=>{mvd[a]=await loadMove(a);LOAD=`載入招式 ${++c}/${arr.length}…`}));
+ Object.entries(mvd).forEach(([a,v])=>{MVA[a]=v.n;if(v.p>0&&v.t)MV[v.n]=[v.t,v.p,v.pp,v.acc]});
+ Object.entries(D).forEach(([id,d])=>{M[id]={n:d.n,ts:d.ts,t:d.ts.join('/'),b:d.b,c:TCOL[d.ts[0]]||'#ccc',spr:{front:d.f,back:d.k},evo:d.evo,mv:['撞擊'],learn:d.learn.filter(([l,m])=>l<=36&&mvd[m]&&mvd[m].p>0&&mvd[m].t).map(([l,m])=>[l,mvd[m].n])}});
+ AREA.start.pool=[161,16,19];AREA.route.pool=[16,19,161,187];AREA.route.night=[163]}
+preload().then(()=>{API_ON=true}).catch(()=>{API_ON=false}).finally(()=>{LOAD='';S.party=S.party.filter(m=>M[m.id]);S.box=(S.box||[]).filter(m=>M[m.id])});
+const mvFor=(id,lv)=>{const D=M[id];if(!D.learn)return D.mv.slice();const l=[...new Set(D.learn.filter(([a])=>a<=lv).map(a=>a[1]))].slice(-4);return l.length?l:['撞擊']};
+function learnAt(m,T){(M[m.id].learn||[]).filter(([l])=>l==m.lv).forEach(([,mv])=>{if(m.mv.includes(mv))return;const n=M[m.id].n;if(m.mv.length<4){m.mv.push(mv);T.push(`${n}學會了${mv}！`)}else{const o=m.mv.shift();m.mv.push(mv);T.push(`${n}忘記了${o}，學會了${mv}！`)}m.pp=null})}
+function evoCheck(m,T){const D=M[m.id];if(D.evo&&m.lv>=D.evo.lv&&M[D.evo.to]){const o=D.n,r=m.hp/m.mhp;m.id=D.evo.to;S.dex[m.id]=2;stats(m);m.hp=Math.max(1,Math.round(m.mhp*r));m.pp=null;T.push(`咦？${o}的樣子……`,`恭喜！${o}進化成了${M[m.id].n}！`)}}
+const trainerCard=()=>{const k=Object.keys(S.dex).filter(i=>M[i]);return[`訓練家卡\n金錢 ¥${S.money}\n徽章 ${S.badges} 枚`,`圖鑑 見過 ${k.length} 種\n捕捉 ${k.filter(i=>S.dex[i]>1).length} 種`]};
+function pc(){say(['開啟了電腦。'],()=>menu(['存放','領出','關閉'],100,50,56,k=>{
+ if(k==0){if(S.party.length<2)return say(['隊伍至少要留一隻精靈。']);pickParty('要存放哪一隻？',j=>{const m=S.party.splice(j,1)[0];(S.box=S.box||[]).push(m);S.pm=null;say([`${M[m.id].n}被存進電腦了。`])},()=>{})}
+ else if(k==1){const b=S.box||[];if(!b.length)return say(['電腦裡沒有精靈。']);if(S.party.length>=6)return say(['隊伍已滿。']);
+  menu(b.map(pl).concat('取消'),30,10,120,j=>{if(j>=b.length)return;const m=b.splice(j,1)[0];S.party.push(m);say([`領出了${M[m.id].n}。`])},()=>{})}},()=>{}))}
+const mk=(id,lv,mul=1)=>{id=cid(id);const m={id,lv,xp:0,mv:mvFor(id,lv)};stats(m);if(mul!=1)['mhp','a','d','s','sa','sd'].forEach(k=>m[k]=Math.round(m[k]*mul));m.hp=m.mhp;return m};
 let S={title:1,px:9,py:9,dir:0,party:[],dex:{},balls:0,starter:0,say:null,menu:null,battle:null};
 try{const v=JSON.parse(localStorage.getItem('rpg'));if(v)S={...S,...v,say:null,menu:null,battle:null}}catch(e){}
-if(BLOCK.includes(MAP[S.py]?.[S.px]||'#')){S.px=9;S.py=9}
-const save=()=>{try{const{px,py,party,dex,balls,starter,pots,steps,inv2}=S;localStorage.setItem('rpg',JSON.stringify({px,py,party,dex,balls,starter,pots,steps,inv2}))}catch(e){}};
+S.flags=S.flags||{};S.money=S.money??3000;S.badges=S.badges||0;S.map=S.map||'town';
+const save=()=>{try{const{px,py,party,dex,balls,starter,pots,steps,inv2,map,money,badges,flags,box}=S;localStorage.setItem('rpg',JSON.stringify({px,py,party,dex,balls,starter,pots,steps,inv2,map,money,badges,flags,box}))}catch(e){}};
 const say=(lines,cb)=>S.say={lines,i:0,n:0,cb};
 const menu=(it,xx,y,w,ok,back)=>S.menu={it,i:0,x:xx,y,w,ok,back};
 const seen=id=>S.dex[id]=S.dex[id]||1;
@@ -103,50 +166,54 @@ function bagMenu(){const l=Object.keys(ITEMS).filter(id=>cnt(id)>0);if(!l.length
    menu(S.party.map(pl),4,4,152,j=>{const m=S.party[j];
     if(id=='pot'){if(m.hp<=0||m.hp>=m.mhp)return say(['沒有效果。'],bagMenu);S.pots--;m.hp=Math.min(m.mhp,m.hp+Math.max(20,Math.round(m.mhp*.3)));say([M[m.id].n+'恢復了體力！'],bagMenu)}
     else{if(m.item)addI(m.item,1);m.item=id;addI(id,-1);say([`讓${M[m.id].n}攜帶了${ITEMS[id].n}。`],bagMenu)}},bagMenu)},bagMenu))},()=>{})}
-function startMenu(){menu(['隊伍','圖鑑','背包','儲存','設定','全螢幕','關閉'],92,4,62,i=>{
+function startMenu(){menu(['隊伍','圖鑑','背包','訓練家','儲存','設定','全螢幕','關閉'],92,4,62,i=>{
  if(i==0)S.party.length?pmenu(0,startMenu):say(['隊伍是空的。']);
- if(i==1){const k=Object.keys(M),r=k.map(id=>S.dex[id]?M[id].n+(S.dex[id]>1?' ●已捕獲':' ○見過'):'？？？');say([r.slice(0,3).join('\n'),r.slice(3).join('\n')])}
- if(i==2)bagMenu();if(i==3){save();say(['已儲存。'])}if(i==4)openSet();if(i==5)fs()},()=>{})}
-function talk(n){const f=S.starter;
- if(n=='prof'){if(!f)say(STORY.profIntro,()=>menu(['葉芽獸','炎尾狐','波波鰭'],6,6,60,i=>{const id=['leaf','fire','aqua'][i];S.party.push(mk(id,5));S.dex[id]=2;S.starter=1;S.balls=5;S.pots=3;S.inv2={berry:2,charm:1};say([M[id].n+'成為了你的夥伴！','拿著精靈球和傷藥，去草叢捕捉精靈吧。'])}));else{S.party.forEach(m=>m.hp=m.mhp);say(['來，讓夥伴們休息一下吧。','（體力全部恢復了！）',...STORY.profAfter])}}
+ if(i==1){const k=Object.keys(S.dex).filter(id=>M[id]),r=k.map(id=>M[id].n+(S.dex[id]>1?' ●已捕獲':' ○見過')),P=[`見過 ${k.length} 種　捕捉 ${k.filter(i=>S.dex[i]>1).length} 種`];for(let j=0;j<r.length;j+=3)P.push(r.slice(j,j+3).join('\n'));say(P)}
+ if(i==2)bagMenu();if(i==3)say(trainerCard());if(i==4){save();say(['已儲存。'])}if(i==5)openSet();if(i==6)fs()},()=>{});S.menu.hud=1}
+function talk(n){const f=S.starter,N=NPC.find(q=>q.id==n);if(N&&N.tr)return fight(N);if(n=='nurse')return nurse();if(n=='clerk')return shop();if(n=='pc')return pc();
+ if(n=='prof'){if(!f)say(STORY.profIntro,()=>menu(['leaf','fire','aqua'].map(k=>M[cid(k)].n),6,6,70,i=>{const id=cid(['leaf','fire','aqua'][i]);S.party.push(mk(id,5));S.dex[id]=2;S.starter=1;S.balls=5;S.pots=3;S.inv2={berry:2,charm:1};say([M[id].n+'成為了你的夥伴！','拿著精靈球和傷藥，去草叢捕捉精靈吧。'])}));else{S.party.forEach(m=>m.hp=m.mhp);say(['來，讓夥伴們休息一下吧。','（體力全部恢復了！）',...STORY.profAfter])}}
  else say(f?STORY.girl1:STORY.girl0)}
 function step(k){const d={u:[0,-1,1],d:[0,1,0],l:[-1,0,2],r:[1,0,3]}[k];S.dir=d[2];const nx=S.px+d[0],ny=S.py+d[1],t=MAP[ny]?.[nx];
  if(!t||BLOCK.includes(t)||NPC.some(n=>n.x==nx&&n.y==ny))return;
- if(t=='E')return say(S.starter?STORY.gate1:STORY.gate0);
+ const wp=(MAPS[CURM].warps||[]).find(w=>w.x==nx&&w.y==ny);if(wp){if(wp.msg)return say(wp.msg);if(wp.need&&!S.starter)return say(STORY.gate0);S.px=S.vx=wp.tx;S.py=S.vy=wp.ty;if(wp.dir!=null)S.dir=wp.dir;FADE=1;return loadMap(wp.to)}
  S.px=nx;S.py=ny;S.steps=(S.steps||0)+1;if(S.steps%10==0)S.party.forEach(m=>m.hp=Math.min(m.mhp,m.hp+1));
- if(t=='g'&&S.starter&&Math.random()<.1){const A=AREA[CUR],c=CURVE(A.a),f=mk(A.pool[Math.random()*A.pool.length|0],c.lo+(Math.random()*(c.hi-c.lo+1)|0),c.mul);f.ai=c.ai;wild(f)}}
+ if(t=='g'&&S.starter&&Math.random()<.1){const A=AREA[CUR],c=CURVE(A.a),h=new Date().getHours(),pl=(h>=20||h<5)&&A.night?A.pool.concat(A.night,A.night):A.pool,f=mk(pl[Math.random()*pl.length|0],c.lo+(Math.random()*(c.hi-c.lo+1)|0),c.mul);f.ai=c.ai;wild(f)}else seeTr()}
 function wild(f){seen(f.id);S.battle={foe:f,me:S.party.find(m=>m.hp>0)||S.party[0]};bgm('battle');say(['野生的'+M[f.id].n+'出現了！'],bmenu)}
 const bmenu=()=>{menu(['戰鬥','隊伍','道具','逃跑'],84,104,74,i=>[mvMenu,()=>pmenu(2,bmenu),bag,run][i]());S.menu.cols=2};
 const bag=()=>menu(['傷藥x'+(S.pots||0),'精靈球x'+S.balls],84,100,70,i=>[potion,ball][i](),bmenu);
 function potion(){const me=S.battle.me;if(!(S.pots>0))return say(['沒有傷藥了！'],bmenu);if(me.hp>=me.mhp)return say(['體力已經滿了。'],bmenu);
  S.pots--;me.hp=Math.min(me.mhp,me.hp+Math.max(20,Math.round(me.mhp*.3)));say([M[me.id].n+'恢復了體力！'],()=>turn(null))}
-const mvMenu=()=>{const me=S.battle.me;menu(me.mv,92,100,62,i=>turn(me.mv[i]),bmenu)};
-function hit(a,d,mv){const[t,p]=MV[mv],mu=TY[t]?.[M[d.id].t]||1;d.hp=Math.max(0,d.hp-Math.max(1,(Math.floor((2*a.lv/5+2)*p*a.a/d.d/50+2)*mu*(a.item=='charm'?1.1:1)*(.85+Math.random()*.15))|0));return mu}
-function turn(mv){const B=S.battle,me=B.me,f=B.foe,sc=m=>MV[m][1]*(TY[MV[m][0]]?.[M[me.id].t]||1),fm=Math.random()<(f.ai||0)?f.mv.reduce((b,m)=>sc(m)>sc(b)?m:b):f.mv[Math.random()*f.mv.length|0],nm=m=>(m==me?'':'野生的')+M[m.id].n;
+const ppMax=v=>MV[v][2]||(v=='撞擊'?35:25);
+const mvMenu=()=>{const me=S.battle.me;if(!me.pp)me.pp=me.mv.map(ppMax);if(me.pp.every(p=>p<=0))return say(['已經沒有可用的招式了！'],()=>turn('撞擊'));
+ menu(me.mv.map((v,i)=>`${v} ${me.pp[i]}`),84,100,74,i=>{if(me.pp[i]<=0)return say(['這個招式的 PP 用完了！'],mvMenu);me.pp[i]--;turn(me.mv[i])},bmenu)};
+function hit(a,d,mv){const[t,p]=MV[mv],mu=eff(t,d),sp=SPECIAL.includes(t),A=sp?a.sa:a.a,D=sp?d.sd:d.d,cr=Math.random()<.0625?1.5:1;
+ d.hp=Math.max(0,d.hp-(mu==0?0:Math.max(1,(Math.floor((2*a.lv/5+2)*p*A/D/50+2)*mu*cr*(tsOf(a.id).includes(t)?1.5:1)*(a.item=='charm'?1.1:1)*(.85+Math.random()*.15))|0))));a.cr=cr>1;return mu}
+function turn(mv){const B=S.battle,me=B.me,f=B.foe,sc=m=>MV[m][1]*eff(MV[m][0],me),fm=Math.random()<(f.ai||0)?f.mv.reduce((b,m)=>sc(m)>sc(b)?m:b):f.mv[Math.random()*f.mv.length|0],nm=m=>(m==me?'':'野生的')+M[m.id].n;
  const e=[f,me,fm],y=[me,f,mv],seq=!mv?[e]:me.s>=f.s?[y,e]:[e,y];
- const go=i=>{if(i>=seq.length)return bmenu();const[a,d,m]=seq[i];if(a.hp<=0)return go(i+1);const mu=hit(a,d,m),T=[nm(a)+'使用了'+m+'！'];
-  if(mu>1)T.push('效果絕佳！');if(mu<1)T.push('效果不太好……');
+ const go=i=>{if(i>=seq.length)return bmenu();const[a,d,m]=seq[i];if(a.hp<=0)return go(i+1);const miss=Math.random()*100>=(MV[m][3]||95),mu=miss?1:hit(a,d,m),T=[nm(a)+'使用了'+m+'！'];if(miss)T.push('但是沒有命中！');
+  if(mu==0)T.push('完全沒有效果……');else{if(a.cr)T.push('擊中了要害！');if(mu>1)T.push('效果絕佳！');if(mu<1)T.push('效果不太好……')}
   if(d.hp>0&&d.item=='berry'&&d.hp<=d.mhp/2){d.hp=Math.min(d.mhp,d.hp+15);d.item=null;T.push(M[d.id].n+'吃下了樹果，恢復了體力！')}
   say(T,()=>d.hp>0?go(i+1):d==f?win():lose())};go(0)}
 function end(){S.battle=null;bgm('town')}
-function win(){const B=S.battle,me=B.me,T=[`野生的${M[B.foe.id].n}倒下了！`];me.xp+=Math.round(B.foe.lv*12*Math.min(1.5,Math.max(.4,B.foe.lv/me.lv)));
- const need=l=>Math.round(l**1.6*4);while(me.xp>=need(me.lv)){me.xp-=need(me.lv);me.lv++;stats(me);T.push(`${M[me.id].n}升到了 Lv${me.lv}！`)}say(T,end)}
-function lose(){const al=S.party.filter(m=>m.hp>0);if(al.length)return say([M[S.battle.me.id].n+'倒下了！'],()=>pmenu(1));S.party.forEach(m=>m.hp=m.mhp);S.px=9;S.py=9;say(['你眼前一黑……','精靈們已在中心恢復體力。'],end)}
-function ball(){if(S.balls<=0)return say(['沒有精靈球了！'],bmenu);const f=S.battle.foe;S.balls--;
- say(['丟出了精靈球！'],()=>{if(Math.random()<(1-f.hp/f.mhp)*.6+.3-Math.min(.2,f.lv*.005)){S.dex[f.id]=2;S.party.length<6&&S.party.push(f);say(['成功捕捉了'+M[f.id].n+'！'],end)}else say(['它掙脫了！'],()=>turn(null))})}
-function run(){Math.random()<.8?say(['順利逃走了！'],end):say(['逃不掉！'],()=>turn(null))}
-function press(k){
- if(S.title){S.title=0;bgm('town');return}
+function win(){const B=S.battle,me=B.me,T=[`${B.tr?'對手的':'野生的'}${M[B.foe.id].n}倒下了！`];me.xp+=Math.round(B.foe.lv*12*Math.min(1.5,Math.max(.4,B.foe.lv/me.lv)));
+ const need=l=>Math.round(l**1.6*4);while(me.xp>=need(me.lv)){me.xp-=need(me.lv);me.lv++;stats(me);T.push(`${M[me.id].n}升到了 Lv${me.lv}！`);learnAt(me,T)}evoCheck(me,T);say(T,()=>nextFoe(B))}
+function lose(){const al=S.party.filter(m=>m.hp>0);if(al.length)return say([M[S.battle.me.id].n+'倒下了！'],()=>pmenu(1));S.party.forEach(m=>m.hp=m.mhp);loadMap('town');S.px=S.vx=9;S.py=S.vy=9;S.money=Math.floor((S.money||0)/2);say(['你眼前一黑……','隨身的錢損失了一半。','精靈們已被送回精靈中心休息。'],end)}
+function ball(){if(S.battle.tr)return say(['不能捕捉別人的精靈！'],bmenu);if(S.balls<=0)return say(['沒有精靈球了！'],bmenu);const f=S.battle.foe;S.balls--;
+ say(['丟出了精靈球！'],()=>{if(Math.random()<(1-f.hp/f.mhp)*.6+.3-Math.min(.2,f.lv*.005)){S.dex[f.id]=2;const full=S.party.length>=6;full?(S.box=S.box||[]).push(f):S.party.push(f);say(['成功捕捉了'+M[f.id].n+'！',...(full?['隊伍已滿，已傳送到電腦。']:[])],end)}else say(['它掙脫了！'],()=>turn(null))})}
+function run(){if(S.battle.tr)return say(['不能在訓練家對戰中逃跑！'],bmenu);Math.random()<.8?say(['順利逃走了！'],end):say(['逃不掉！'],()=>turn(null))}
+function press(k){if(S.busy)return;
+ if(S.title&&!S.menu){if(LOAD)return;let sv=0;try{sv=localStorage.getItem('rpg')}catch(e){}const go=()=>{S.title=0;loadMap(S.map||'town');S.vx=S.px;S.vy=S.py;bgm('town')};
+  if(!sv)return go();menu(['繼續','新遊戲'],50,92,60,i=>{if(i==1){try{localStorage.removeItem('rpg')}catch(e){}S=NEW()}go()});return}
  if(S.say){if(k=='a'||k=='b'){const s=S.say;if(s.n<s.lines[s.i].length){s.n=999;return}s.i++;if(s.i>=s.lines.length){S.say=null;s.cb&&s.cb()}else s.n=0}return}
  if(S.menu){const m=S.menu,N=m.it.length;if(m.cols){const c=m.cols;if(k=='u'&&m.i>=c)m.i-=c;if(k=='d'&&m.i+c<N)m.i+=c;if(k=='l'&&m.i%c)m.i--;if(k=='r'&&m.i%c<c-1&&m.i+1<N)m.i++}else{if(k=='u')m.i=(m.i+N-1)%N;if(k=='d')m.i=(m.i+1)%N}
   if(k=='a'){S.menu=null;m.ok(m.i)}if(k=='b'&&m.back){S.menu=null;m.back()}return}
  if(S.st)return stIn(k);if(S.pm)return pmIn(k);if(S.battle)return;
  if(k=='s'||k=='b')return startMenu();
- if(k=='a'){const dx=[0,0,-1,1][S.dir]+S.px,dy=[1,-1,0,0][S.dir]+S.py,n=NPC.find(n=>n.x==dx&&n.y==dy);
-  if(n)talk(n.id);else if(MAP[dy]?.[dx]=='D')say(['門鎖著。']);return}
+ if(k=='a'){const dx=[0,0,-1,1][S.dir]+S.px,dy=[1,-1,0,0][S.dir]+S.py,n=NPC.find(n=>n.x==dx&&n.y==dy)||(MAP[dy]?.[dx]=='C'&&NPC.find(n=>n.x==2*dx-S.px&&n.y==2*dy-S.py));
+  if(n)talk(n.id);return}
  step(k)}
 // ===== 控制：搖桿 / AB / 功能鍵 / 鍵盤 =====
-const idle=()=>!S.title&&!S.say&&!S.menu&&!S.battle&&!S.pm&&!S.st;
+const idle=()=>!S.title&&!S.say&&!S.menu&&!S.battle&&!S.pm&&!S.st&&!S.busy;
 const toS=e=>ROT?{x:e.clientY,y:innerWidth-e.clientX}:{x:e.clientX,y:e.clientY};
 const fs=()=>{const d=document.documentElement;try{if(document.fullscreenElement)return document.exitFullscreen();d.requestFullscreen().then(()=>screen.orientation?.lock?.('landscape')).catch(()=>{})}catch(_){}};
 let dirSrc={},cd=null,rep=null;
@@ -160,14 +227,14 @@ joy.addEventListener('pointermove',e=>{if(joy.hasPointerCapture(e.pointerId))jmo
 const tap=(el,f)=>el.addEventListener('pointerdown',e=>{e.preventDefault();f()});
 tap(ba,()=>press('a'));tap(bb,()=>press('b'));
 document.querySelectorAll('.k[data-f]').forEach(b=>tap(b,()=>{const f=+b.dataset.f;if(f==9)return fs();if(f==8)return openSet();if(!idle())return;if(f==5)return startMenu();startMenu();const m=S.menu;S.menu=null;m.ok(f)}));
-document.addEventListener('pointerdown',e=>{if(S.title){e.stopPropagation();e.preventDefault();fs();press('a')}},true);
+document.addEventListener('pointerdown',e=>{if(S.title&&!S.menu){e.stopPropagation();e.preventDefault();fs();press('a')}},true);
 cv.addEventListener('pointerdown',e=>{e.preventDefault();if(S.say)return press('a');
  if(!S.menu&&(S.pm||S.st)){if(S.st)return press('a');const p=toS(e),gy=(p.y-LR.y)/LR.s,r=Math.floor((gy-2)/16),P=S.pm;if(r>=0&&r<S.party.length&&gy<98){if(r==P.i)press('a');else P.i=r}else press('b');return}
  if(S.menu){const p=toS(e),gx=(p.x-LR.x)/LR.s,gy=(p.y-LR.y)/LR.s,m=S.menu,r=Math.floor((gy-m.y-5)/13),c=m.cols||1,cl=Math.floor((gx-m.x-4)/((m.w-8)/c)),i=r*c+cl;
   if(gx>=m.x&&gx<=m.x+m.w&&r>=0&&cl>=0&&cl<c&&i<m.it.length){m.i=i;press('a')}else press('b')}});
 const KD={ArrowUp:'u',w:'u',ArrowDown:'d',s:'d',ArrowLeft:'l',a:'l',ArrowRight:'r',d:'r'},KA={z:'a',j:'a',' ':'a',x:'b',k:'b',Escape:'b',Backspace:'b',Enter:'s',m:'s',Tab:'s'},ks=[];
 const kn2=e=>e.key.length>1?e.key:e.key.toLowerCase();
-addEventListener('keydown',e=>{const k=kn2(e);if(KD[k]||KA[k])e.preventDefault();if(e.repeat)return;if(S.title)return press('a');
+addEventListener('keydown',e=>{const k=kn2(e);if(KD[k]||KA[k])e.preventDefault();if(e.repeat)return;if(S.title&&!S.menu)return press('a');
  if(KD[k]){ks.push(KD[k]);dirSrc.key=KD[k];upd()}else if(KA[k])press(KA[k]=='s'&&!idle()?'a':KA[k])});
 addEventListener('keyup',e=>{const d=KD[kn2(e)];if(d){const i=ks.lastIndexOf(d);if(i>-1)ks.splice(i,1);dirSrc.key=ks[ks.length-1]||null;upd()}});
 addEventListener('contextmenu',e=>e.preventDefault());
@@ -207,7 +274,7 @@ function drawOld(){x.clearRect(0,0,160,144);
 // ===== 美化渲染（程序生成像素素材；你自己的圖片放進素材槽後會自動取代） =====
 const TITLE='〈遊戲名稱〉',FF='Noto Sans TC,PingFang TC,Microsoft JhengHei,sans-serif';document.title=TITLE;
 const dk=h=>'#'+[...h.slice(1)].map(c=>(parseInt(c,16)*.6|0).toString(16)).join('');
-const TC=document.createElement('canvas');TC.width=128;TC.height=16;
+const TC=document.createElement('canvas');TC.width=192;TC.height=16;
 (function(){const t=TC.getContext('2d');let s=11;const r=()=>(s=s*16807%2147483647)/2147483647,f=(c,a,b,w=1,h=1)=>{t.fillStyle=c;t.fillRect(a,b,w,h)},dot=(o,c,n)=>{for(let i=0;i<n;i++)f(c,o+(r()*15|0),r()*15|0)};
  f('#e3d3a0',0,0,16,16);dot(0,'#cfba84',14);dot(0,'#f0e4b8',10);
  f('#5fae4e',16,0,16,16);for(let i=0;i<7;i++){const a=17+(r()*12|0),b=4+(r()*10|0);f('#3c8a3a',a,b,1,4);f('#92d46c',a+1,b-1,1,3)}
@@ -215,7 +282,11 @@ const TC=document.createElement('canvas');TC.width=128;TC.height=16;
  f('#f1e3c2',48,0,16,16);f('#c0463a',48,0,16,8);for(let i=0;i<4;i++)f('#9e3329',48,i*2+1,16,1);f('#7a2a20',48,7,16,1);f('#8cc8f0',52,10,4,3);f('#fff',53,10,1,3);f('#d6c79f',48,15,16,1);
  f('#f1e3c2',64,0,16,16);f('#c0463a',64,0,16,3);f('#7a4a24',68,5,8,11);f('#5a3416',68,5,8,1);f('#f0c040',73,10,1,2);
  for(const o of[80,112]){f('#4a90d8',o,0,16,16);const k=o==80?0:2;for(let i=0;i<4;i++)f('#8cc4f4',o+((i*5+k)%13),2+i*4,3,1)}
- f('#e3d3a0',96,0,16,16);f('#fcc230',102,2,4,6);f('#fcc230',99,8,10,2);f('#fcc230',101,10,6,2);f('#fcc230',103,12,2,2)})();
+ f('#e3d3a0',96,0,16,16);f('#fcc230',102,2,4,6);f('#fcc230',99,8,10,2);f('#fcc230',101,10,6,2);f('#fcc230',103,12,2,2);
+ f('#c8a46a',128,0,16,16);for(let i=0;i<4;i++)f('#b08850',128,i*4+3,16,1);dot(128,'#d8b47a',8);
+ f('#d9d2c0',144,0,16,16);for(let i=0;i<8;i++)f('#cfc6b0',144+i*2,0,1,12);f('#7a6a55',144,12,16,4);f('#9a8a70',144,12,16,1);
+ f('#8a5a32',160,0,16,16);f('#a8743f',160,0,16,5);f('#c9904f',160,0,16,1);f('#6e4524',160,12,16,4);
+ f('#c8a46a',176,0,16,16);f('#c0463a',178,4,12,8);f('#e0705f',178,4,12,1)})();
 function hero(a,b,d,w,c1,c2){a=Math.round(a);b=Math.round(b);const f=(c,l,t,ww,hh)=>{x.fillStyle=c;x.fillRect(a+l,b+t,ww,hh)};
  x.fillStyle='rgba(0,0,0,.2)';x.beginPath();x.ellipse(a+8,b+15,5,2,0,0,7);x.fill();
  f('#33407a',5,11,3,4-(w==1));f('#33407a',8,11,3,4-(w==2));f('#222',5,14-(w==1),3,1);f('#222',8,14-(w==2),3,1);
@@ -239,7 +310,7 @@ const wnd=(a,b,w,h)=>{const p=(o,r)=>{x.beginPath();x.roundRect(a+o,b+o,w-2*o,h-
  x.strokeStyle='#26283a';x.lineWidth=1.4;p(0,3);x.stroke();x.strokeStyle='#c9c3a6';x.lineWidth=.6;p(2,2);x.stroke()};
 function hp2(a,b,w,r){x.fillStyle='#26283a';x.beginPath();x.roundRect(a-10,b-2,w+12,8,3);x.fill();x.fillStyle='#f7c64a';x.font='bold 5px '+FF;x.textBaseline='top';x.fillText('HP',a-8,b);
  x.fillStyle='#3a3d52';x.fillRect(a,b,w,4);x.fillStyle=r>.5?'#4cc84c':r>.2?'#ecc43c':'#e44a4a';x.fillRect(a,b,w*Math.max(0,r),4);x.fillStyle='rgba(255,255,255,.4)';x.fillRect(a,b,w*Math.max(0,r),1.3)}
-function menu2(m){const c=m.cols||1,cw=(m.w-8)/c;wnd(m.x,m.y,m.w,Math.ceil(m.it.length/c)*13+8);m.it.forEach((s,i)=>{const cx=m.x+4+(i%c)*cw,y=m.y+5+(i/c|0)*13;if(i==m.i){x.fillStyle='#ffe9a8';x.fillRect(cx,y-1,cw,12);x.fillStyle='#d23a3a';x.beginPath();x.moveTo(cx+2,y+2);x.lineTo(cx+2,y+8);x.lineTo(cx+6,y+5);x.fill()}txt(s,cx+9,y)})}
+function menu2(m){const c=m.cols||1,cw=(m.w-8)/c;wnd(m.x,m.y,m.w,Math.ceil(m.it.length/c)*13+8);m.it.forEach((s,i)=>{const cx=m.x+4+(i%c)*cw,y=m.y+5+(i/c|0)*13;if(i==m.i){x.fillStyle='#ffe9a8';x.fillRect(cx,y-1,cw,12);x.fillStyle='#d23a3a';x.beginPath();x.moveTo(cx+2,y+2);x.lineTo(cx+2,y+8);x.lineTo(cx+6,y+5);x.fill()}txt(s,cx+9,y)});if(m.hud){const d=new Date(),h=d.getHours();wnd(4,4,84,44);txt('日一二三四五六'[d.getDay()]+'曜日 '+(h<10?'早晨':h<18?'白天':'夜晚'),9,8);txt(`${String(h).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`,9,20);txt(`¥${S.money||0}　徽章${S.badges||0}`,9,32)}}
 function dlg(){if(S.say){const s=S.say,t=s.lines[s.i];s.n=Math.min(s.n+.7,t.length+1);wnd(2,98,156,44);
   const T=t.slice(0,Math.floor(s.n)).split('\n').flatMap(l=>l.match(/.{1,15}/g)||['']);T.slice(0,3).forEach((l,i)=>txt(l,10,104+i*12));
   if(s.n>=t.length&&(performance.now()/400|0)%2){x.fillStyle='#d23a3a';x.beginPath();x.moveTo(146,132);x.lineTo(154,132);x.lineTo(150,137);x.fill()}}
@@ -249,20 +320,24 @@ function title(){const t=performance.now()/1000,g=x.createLinearGradient(0,0,0,1
  x.fillStyle='#2b3350';x.beginPath();x.moveTo(0,144);for(let i=0;i<=160;i+=4)x.lineTo(i,100+Math.sin(i*.05)*7+Math.sin(i*.13)*3);x.lineTo(160,144);x.fill();
  x.fillStyle='#1a2038';x.beginPath();x.moveTo(0,144);for(let i=0;i<=160;i+=4)x.lineTo(i,118+Math.sin(i*.09+1)*5);x.lineTo(160,144);x.fill();
  x.textAlign='center';x.textBaseline='middle';x.font='bold 22px '+FF;x.lineJoin='round';x.lineWidth=4;x.strokeStyle='#26283a';x.strokeText(TITLE,80,46);x.fillStyle='#ffd95a';x.fillText(TITLE,80,46);
- x.font='9px '+FF;x.fillStyle='#fff';x.globalAlpha=.55+.45*Math.sin(t*4);x.fillText('點一下螢幕開始',80,84);x.globalAlpha=1;x.font='8px '+FF;x.fillStyle='rgba(255,255,255,.65)';x.fillText('搖桿/方向鍵移動 · A/Z 確認',80,132);x.textAlign='left';x.textBaseline='top'}
+ x.font='9px '+FF;x.fillStyle='#fff';x.globalAlpha=.55+.45*Math.sin(t*4);x.fillText(LOAD||'點一下螢幕開始',80,84);if(!LOAD){x.font='7px '+FF;x.fillText(API_ON?'已載入 PokeAPI 資料':'離線模式（內建原創精靈）',80,96);x.font='9px '+FF}x.globalAlpha=1;x.font='8px '+FF;x.fillStyle='rgba(255,255,255,.65)';x.fillText('搖桿/方向鍵移動 · A/Z 確認',80,132);x.textAlign='left';x.textBaseline='top'}
 function world(){const t=performance.now();S.vx=S.vx==null?S.px:S.vx+(S.px-S.vx)*.3;S.vy=S.vy==null?S.py:S.vy+(S.py-S.vy)*.3;
  if(Math.abs(S.px-S.vx)<.02)S.vx=S.px;if(Math.abs(S.py-S.vy)<.02)S.vy=S.py;
- const mv=S.vx!=S.px||S.vy!=S.py,cx=Math.min(Math.max(S.vx-4.5,0),10),cy=Math.min(Math.max(S.vy-4,0),6),src=imgs.tiles.ok?imgs.tiles:TC,wf=(t/500|0)%2;
- for(let j=Math.floor(cy);j<Math.floor(cy)+10&&j<MAP.length;j++)for(let i=Math.floor(cx);i<Math.floor(cx)+11&&i<20;i++){const c=MAP[j][i],k=TI.indexOf(c);x.drawImage(src,(c=='~'&&wf&&!imgs.tiles.ok?7:k)*16,0,16,16,Math.round((i-cx)*16),Math.round((j-cy)*16),16,16)}
- [...NPC.map(n=>({x:n.x,y:n.y,id:n.id})),{x:S.vx,y:S.vy,me:1}].sort((a,b)=>a.y-b.y).forEach(e=>{const ox=(e.x-cx)*16,oy=(e.y-cy)*16;
+ const W=MAP[0].length,H=MAP.length,mv=S.vx!=S.px||S.vy!=S.py,cx=W<=10?(W-10)/2:Math.min(Math.max(S.vx-4.5,0),W-10),cy=H<=9?(H-9)/2:Math.min(Math.max(S.vy-4,0),H-9),src=imgs.tiles.ok?imgs.tiles:TC,wf=(t/500|0)%2;x.fillStyle='#14161f';x.fillRect(0,0,160,144);
+ for(let j=Math.max(0,Math.floor(cy));j<Math.floor(cy)+10&&j<H;j++)for(let i=Math.max(0,Math.floor(cx));i<Math.floor(cx)+11&&i<W;i++){const c=MAP[j][i],k=TI.indexOf(c);x.drawImage(src,(c=='~'&&wf&&!imgs.tiles.ok?7:k)*16,0,16,16,Math.round((i-cx)*16),Math.round((j-cy)*16),16,16)}
+ [...NPC.map(n=>{n.vx=n.vx==null?n.x:n.vx+(n.x-n.vx)*.3;n.vy=n.vy==null?n.y:n.vy+(n.y-n.vy)*.3;return{x:n.vx,y:n.vy,id:n.id,dir:n.dir||0,c:n.c||['#f08ab0','#7a3a1a']}}),{x:S.vx,y:S.vy,me:1}].sort((a,b)=>a.y-b.y).forEach(e=>{const ox=(e.x-cx)*16,oy=(e.y-cy)*16;
   if(e.me){if(imgs.player.ok)x.drawImage(imgs.player,S.dir*16,0,16,16,Math.round(ox),Math.round(oy),16,16);else hero(ox,oy-1,S.dir,mv?1+((S.vx*2+S.vy*2|0)%2):0,'#d8483a','#4a2e1a')}
-  else hero(ox,oy-1+(Math.sin(t/500+e.x)>.7?-1:0),0,0,e.id=='prof'?'#f4f4f4':'#f08ab0',e.id=='prof'?'#9a9a9a':'#7a3a1a')});
- const g=x.createRadialGradient(80,66,50,80,66,105);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(10,10,30,.3)');x.fillStyle=g;x.fillRect(0,0,160,96)}
+  else e.id=='pc'?(x.fillStyle='#3a4a5a',x.fillRect(ox+1,oy+3,14,10),x.fillStyle='#7ad0ff',x.fillRect(ox+3,oy+5,10,5)):hero(ox,oy-1+(Math.sin(t/500+e.x)>.7?-1:0),e.dir,0,e.c[0],e.c[1])});
+ if(S.emote){const q=NPC.find(n=>n.id==S.emote.id);if(q){const a=(q.vx-cx)*16+8,b=(q.vy-cy)*16-14-Math.abs(Math.sin((t-S.emote.t)/90))*3;x.fillStyle='#fff';x.strokeStyle='#26283a';x.lineWidth=1;x.beginPath();x.roundRect(a-6,b-6,12,14,3);x.fill();x.stroke();x.fillStyle='#e03030';x.fillRect(a-1,b-3,2,6);x.fillRect(a-1,b+4,2,2)}}
+ const g=x.createRadialGradient(80,66,50,80,66,105);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(10,10,30,.3)');x.fillStyle=g;x.fillRect(0,0,160,96);if(!MAPS[CURM].indoor){const h=new Date().getHours(),tn=h>=20||h<5?'rgba(15,25,90,.4)':h>=17?'rgba(255,130,50,.16)':h<8?'rgba(255,215,150,.1)':null;if(tn){x.fillStyle=tn;x.fillRect(0,0,160,144)}}}
 function battle(B){const t=B.t=(B.t||0)+1,ez=1-(1-Math.min(1,t/30))**3,bob=Math.sin(performance.now()/350),me=B.me,f=B.foe,lk=(v,g)=>v+(g-v)*.12;
  B.dh=lk(B.dh??me.hp,me.hp);B.fh=lk(B.fh??f.hp,f.hp);let tg=me.xp/need(me.lv);if(B.dl==null)B.dl=me.lv;if(B.dl!==me.lv){tg=1;if(B.dx>.97){B.dl=me.lv;B.dx=0}}B.dx=lk(B.dx??tg,tg);
  const g=x.createLinearGradient(0,0,0,98);g.addColorStop(0,'#8fd0f5');g.addColorStop(.55,'#d8f0ff');g.addColorStop(.56,'#8fcf6a');g.addColorStop(1,'#5aa844');x.fillStyle=g;x.fillRect(0,0,160,98);
  const pf=(cx,cy,rx,ry)=>{x.fillStyle='#4f9a3d';x.beginPath();x.ellipse(cx,cy+2,rx,ry,0,0,7);x.fill();x.fillStyle='#8bd06a';x.beginPath();x.ellipse(cx,cy,rx,ry,0,0,7);x.fill()};
- pf(122+(1-ez)*70,56,32,8);pf(36-(1-ez)*70,92,40,9);mon2(f,98+(1-ez)*70,10+bob,'front');mon2(me,12-(1-ez)*70,44-bob*.8,'back');
+ const now=performance.now();if(B.pfm==null)B.pfm=now+(B.tr?900:500);if(B.pff==null)B.pff=B.tr?now+500:-1e9;const sl=B.pff>0?0:(1-ez)*70;
+ const sp=(m,a,b,side,t0)=>{const age=now-t0;if(age<0)return;const k=Math.min(1,.2+age/350);x.save();x.translate(a+24,b+30);x.scale(k,k);x.translate(-a-24,-b-30);mon2(m,a,b,side);x.restore();
+  if(age<650){const q=age/650;for(let i=0;i<7;i++){const an=i/7*6.283+.4,r=4+q*20;x.fillStyle=`rgba(245,245,245,${.9*(1-q)})`;x.beginPath();x.arc(a+24+Math.cos(an)*r,b+32+Math.sin(an)*r*.7,4+q*8*(1-q*.4),0,7);x.fill();x.strokeStyle=`rgba(150,150,160,${.5*(1-q)})`;x.lineWidth=.8;x.stroke()}}};
+ pf(122+sl,56,32,8);pf(36,92,40,9);sp(f,98+sl,10+bob,'front',B.pff);sp(me,12,44-bob*.8,'back',B.pfm);
  wnd(4,6,84,28);txt(M[f.id].n,9,9);txt('Lv'+f.lv,68,9);hp2(26,22,54,B.fh/f.mhp);
  wnd(72,58,86,38);txt(M[me.id].n,77,61);txt('Lv'+me.lv,130,61);hp2(92,74,58,B.dh/me.mhp);
  x.textAlign='right';txt(`${Math.round(B.dh)}/${me.mhp}`,152,79);x.textAlign='left';
@@ -274,7 +349,7 @@ const pickParty=(prompt,pick,back)=>S.pm={i:0,sw:null,back,prompt,pick};
 function pmenu(mode,back){ // 0=管理 1=倒下後強制上場 2=戰鬥中換人
  S.pm={i:mode==2?Math.max(0,S.party.indexOf(S.battle.me)):0,sw:null,back:mode==1?null:back,prompt:mode?'要派哪一隻上場？':'選擇一隻精靈。',
   pick:mode?j=>{const B=S.battle,m=S.party[j];if(m.hp<=0)return say(['已經無法戰鬥了！']);if(m==B.me)return say(['已經在場上了！']);
-   const old=M[B.me.id].n;S.pm=null;B.me=m;B.dh=B.dx=B.dl=null;say([mode==2?`回來吧，${old}！`:'',`上吧，${M[m.id].n}！`].filter(Boolean),()=>mode==2?turn(null):bmenu())}:null}}
+   const old=M[B.me.id].n;S.pm=null;B.me=m;B.dh=B.dx=B.dl=B.pfm=null;say([mode==2?`回來吧，${old}！`:'',`上吧，${M[m.id].n}！`].filter(Boolean),()=>mode==2?turn(null):bmenu())}:null}}
 function pmIn(k){const P=S.pm,N=S.party.length;
  if(k=='u')P.i=(P.i+N-1)%N;if(k=='d')P.i=(P.i+1)%N;
  if(k=='b'){if(P.sw!=null){P.sw=null;P.prompt='選擇一隻精靈。';return}if(P.back){const b=P.back;S.pm=null;b()}return}
@@ -310,6 +385,6 @@ function stDraw(){const s=S.st,m=S.party[s.i],D=M[m.id],n=need(m.lv);x.fillStyle
   txt(`經驗 ${m.xp}/${n}`,10,105);x.fillStyle='#3a3d52';x.fillRect(10,116,140,3);x.fillStyle='#4aa0ff';x.fillRect(10,116,140*Math.min(1,m.xp/n),3)}
  else{txt('招式',10,81);m.mv.forEach((v,i)=>{const y=93+i*13;txt(v,14,y);txt(MV[v][0],70,y);txt('威力 '+MV[v][1],104,y)})}
  x.font='7px '+FF;x.fillStyle='#777';x.fillText('◀▶ 換頁　▲▼ 換隻　B 返回',10,128)}
-function draw(){x.clearRect(0,0,160,144);if(S.title)return title();if(S.st)stDraw();else if(S.pm)pDraw();else if(S.battle)battle(S.battle);else world();dlg()}
+let FADE=0;function draw(){x.clearRect(0,0,160,144);if(S.title){title();return dlg()}if(S.st)stDraw();else if(S.pm)pDraw();else if(S.battle)battle(S.battle);else world();dlg();if(FADE>0){x.fillStyle=`rgba(0,0,0,${FADE})`;x.fillRect(0,0,160,144);FADE=Math.max(0,FADE-.06)}}
 (function loop(){draw();requestAnimationFrame(loop)})();
 </script></body></html>
